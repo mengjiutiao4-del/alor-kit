@@ -45,17 +45,16 @@ jobs:
         run: |
           cp alor/alor_touch_v47.c kernel/files/bsd/dev/alor_touch.c
           test "$(grep -c 'macan_rpmh_vote' kernel/files/bsd/dev/alor_touch.c)" -ge 3 || { echo 'v47 driver missing the locked voter'; exit 1; }
-          python3 alor/register_driver.py
-          grep -q 'alor_touch_init' kernel/files/bsd/dev/macan_input.c || { echo 'driver not registered'; exit 1; }
+          # kernel.patch already lists bsd/dev/alor_touch.c and macan_input.c already
+          # calls alor_touch_init(); registering it a second time links two copies.
+          grep -q 'alor_touch.c' kernel/kernel.patch || { echo 'kernel.patch lost the driver line'; exit 1; }
+          grep -q 'alor_touch_init();' kernel/files/bsd/dev/macan_input.c || { echo 'macan_input.c lost the call'; exit 1; }
 
       - name: Host tools, stage 1
         run: ./xnu-deps/setup.sh --stage1
 
       - name: Apple XNU with kernel/
         run: ./kernel/apply.sh
-
-      - name: Register the driver
-        run: printf 'bsd/dev/alor_touch.c\tstandard\n' >> xnu-src/xnu-8796.121.2/bsd/conf/files
 
       - name: Host tools, stage 2
         run: ./xnu-deps/setup.sh --stage2
