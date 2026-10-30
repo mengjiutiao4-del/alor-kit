@@ -1,4 +1,4 @@
-name: alor-kit55
+name: alor-kit56
 
 on:
   workflow_dispatch:
@@ -93,6 +93,9 @@ jobs:
           open(p, 'w').write(s)
           PY
 
+      - name: Vote the touch rails from the firmware in the supported mode
+        run: python3 alor/loader_rails_patch3.py loader/loader.c
+
       - name: Build the UEFI around that kernel
         run: |
           python3 -m venv work/uefi-venv
@@ -123,14 +126,14 @@ jobs:
           git tag -f kit-latest
           git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}" tag kit-latest
           gh release create kit-latest work/mach.development.bcm2837 work/uefi.img \
-            --title "alor kit v55" --notes "kernel + uefi, single workflow" \
+            --title "alor kit v56" --notes "kernel + uefi, single workflow" \
             || gh release upload kit-latest work/mach.development.bcm2837 work/uefi.img --clobber
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/kit-latest/uefi.img"
 
 
       - uses: actions/upload-artifact@v4
         with:
-          name: alor-kit55
+          name: alor-kit56
           path: |
             work/mach.development.bcm2837
             work/uefi.img
