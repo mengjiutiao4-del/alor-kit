@@ -50,6 +50,9 @@ jobs:
           grep -q 'alor_touch.c' kernel/kernel.patch || { echo 'kernel.patch lost the driver line'; exit 1; }
           grep -q 'alor_touch_init();' kernel/files/bsd/dev/macan_input.c || { echo 'macan_input.c lost the call'; exit 1; }
 
+      - name: Gate the driver source before the long build
+        run: python3 alor/check_c.py kernel/files/bsd/dev/alor_touch.c --require "v50 as found"
+
       - name: Host tools, stage 1
         run: ./xnu-deps/setup.sh --stage1
 
