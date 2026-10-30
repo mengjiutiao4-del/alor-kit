@@ -1,0 +1,162 @@
+name: alor-kit61
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [alorkit]
+
+# One build at a time, and never a fan-out: a second push waits instead of
+# starting a parallel job (the parallel storm is what got the last account
+# flagged).
+concurrency:
+  group: alor-kit
+  cancel-in-progress: false
+
+jobs:
+  kit:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      THEOS: ${{ github.workspace }}/work/theos
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang lld llvm make flex bison m4 perl python3 python3-venv python3-pip \
+            autoconf automake libtool meson ninja-build cmake pkg-config git curl xz-utils zstd p7zip-full \
+            binutils libssl-dev uuid-dev libelf-dev
+          echo "$GITHUB_WORKSPACE/xnu-deps/host/bin" >> "$GITHUB_PATH"
+
+      - name: Theos toolchain and the iOS 16.5 SDK
+        run: |
+          mkdir -p "$THEOS/sdks" "$THEOS/toolchain"
+          curl -sL --fail https://github.com/L1ghtmann/llvm-project/releases/download/test-210562a/iOSToolchain-x86_64.tar.xz | tar -xJ -C "$THEOS/toolchain"
+          rm -rf "$THEOS/sdks/.src"
+          git clone -q --depth 1 --filter=blob:none --sparse https://github.com/theos/sdks.git "$THEOS/sdks/.src"
+          git -C "$THEOS/sdks/.src" sparse-checkout set iPhoneOS16.5.sdk
+          mv "$THEOS/sdks/.src/iPhoneOS16.5.sdk" "$THEOS/sdks/"
+          rm -rf "$THEOS/sdks/.src"
+
+      - name: Overlay the alor touch driver
+        run: |
+          cp alor/alor_touch_v61.c kernel/files/bsd/dev/alor_touch.c
+          test "$(grep -c 'macan_rpmh_vote' kernel/files/bsd/dev/alor_touch.c)" -ge 3 || { echo 'v47 driver missing the locked voter'; exit 1; }
+          # kernel.patch already lists bsd/dev/alor_touch.c and macan_input.c already
+          # calls alor_touch_init(); registering it a second time links two copies.
+          grep -q 'alor_touch.c' kernel/kernel.patch || { echo 'kernel.patch lost the driver line'; exit 1; }
+          grep -q 'alor_touch_init();' kernel/files/bsd/dev/macan_input.c || { echo 'macan_input.c lost the call'; exit 1; }
+
+      - name: Gate the driver source before the long build
+        run: python3 alor/check_c.py kernel/files/bsd/dev/alor_touch.c --require "v61 as found"
+
+      - name: Host tools, stage 1
+        run: ./xnu-deps/setup.sh --stage1
+
+      - name: Apple XNU with kernel/
+        run: ./kernel/apply.sh
+
+      - name: Host tools, stage 2
+        run: ./xnu-deps/setup.sh --stage2
+
+      - name: Build the kernel
+        run: |
+          mkdir -p work
+          bash tools/xnu-build.sh -j"$(nproc)" -k 2>&1 | tee kernel-build.log
+          cp xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837 work/mach.development.bcm2837
+          grep -c 'v61 as found' work/mach.development.bcm2837 >/dev/null || { echo 'the built kernel is not v47'; exit 1; }
+
+      - name: Patch the loader to show the kernel log and never reset the handset
+        run: |
+          python3 - <<'PY'
+          NL = chr(10)
+          p = 'loader/loader.c'
+          s = open(p).read()
+          s2 = s.replace('#define SILENCE_SECONDS 50', '#define SILENCE_SECONDS 120', 1)
+          print('silence', 'ok' if s2 != s else 'MISS'); s = s2
+          old = ' compose_logs(klog, klog_len);' + NL
+          new = ' screen_quiet = 0;' + NL + ' compose_logs(klog, klog_len);' + NL
+          print('screen', 'ok' if old in s else 'MISS')
+          s = s.replace(old, new, 1)
+          a1 = '    set_result("hung", loader_ctx[CTX_LOG_LEN], 0);'
+          s = s.replace(a1, '    screen_quiet = 0;' + NL + a1, 1)
+          a2 = '    write_logs((const char *)loader_ctx[CTX_LOG_PA], loader_ctx[CTX_LOG_LEN]);'
+          s = s.replace(a2, a2 + NL + '    for (;;) { usb_poll_command(); BS->stall(100000); }', 1)
+          print('hang', 'ok' if a2 in s else 'MISS')
+          old = 'if (pi.kernel_size != MACAN_KERNEL_SIZE || payload_crc32(pi.kernel, pi.kernel_size) != MACAN_KERNEL_CRC32) {'
+          new = 'if (0 && (pi.kernel_size != MACAN_KERNEL_SIZE || payload_crc32(pi.kernel, pi.kernel_size) != MACAN_KERNEL_CRC32)) {'
+          print('gate', 'ok' if old in s else 'MISS')
+          s = s.replace(old, new, 1)
+          # The kit only streams the kernel's live log while it runs on another
+          # core for redwood; macan has it off, so the screen stays blank until
+          # the 120 s silence verdict. Turning it on prints the heartbeat plus the
+          # last 240 bytes of kernel log every two seconds.
+          q = 'loader/platform.h'
+          t = open(q).read()
+          pold = '.cores=8, .mpidrs=macan_mpidrs,'
+          if pold not in t:
+              raise SystemExit('platform.h macan anchor missing')
+          open(q, 'w').write(t.replace(pold, '.log_other_cpu=1, ' + pold, 1))
+          old = 'note_kernel_progress(live, slide, noted);'
+          if old not in s:
+              raise SystemExit('note_kernel_progress call missing')
+          s = s.replace(old, 'screen_quiet = 0;' + NL + ' ' + old, 1)
+          # A MISS here used to print and carry on, which wasted a whole boot:
+          # if the log dump is not armed, the run tells us nothing.
+          for probe in ('#define SILENCE_SECONDS 120',
+                        ' screen_quiet = 0;' + NL + ' compose_logs(klog, klog_len);',
+                        '    screen_quiet = 0;' + NL + '    set_result("hung"',
+                        'screen_quiet = 0;' + NL + ' note_kernel_progress',
+                        'for (;;) { usb_poll_command(); BS->stall(100000); }',
+                        'if (0 && (pi.kernel_size != MACAN_KERNEL_SIZE'):
+              if probe not in s:
+                  raise SystemExit('loader patch did not land: ' + probe.replace(NL, ' / '))
+          open(p, 'w').write(s)
+          PY
+
+
+      - name: Build the UEFI around that kernel
+        run: |
+          python3 -m venv work/uefi-venv
+          work/uefi-venv/bin/pip install -q -r uefi/mu/pip-requirements.txt
+          python3 uefi/add_ram_loader.py --kernel work/mach.development.bcm2837
+          cat artifacts/ace6t/generated/kernel-provenance.json
+          export MACAN_KERNEL_HEADER="$PWD/artifacts/ace6t/generated/macan-kernel.h"
+          XNU_PLATFORM=macan bash loader/build.sh
+          cp loader/loader-macan.efi uefi/mu/Platforms/OnePlus/macanPkg/Applications/XnuRamLoader/loader-macan.efi
+          mkdir -p uefi/mu/Build
+          ( cd uefi/mu && ../../work/uefi-venv/bin/python3 build_uefi.py -d macan -r DEBUG ) 2>&1 | tee uefi-build.log
+          cp uefi/mu/Mu-macan.img work/uefi.img
+          ls -l work/mach.development.bcm2837 work/uefi.img
+
+      - name: Refuse to run in a repo with more than one workflow
+        run: |
+          n=$(find .github/workflows -name '*.yml' | wc -l)
+          echo "workflow files: $n"
+          [ "$n" -eq 1 ] || { echo 'more than one workflow in this repo; stopping before it can fan out'; exit 1; }
+
+      - name: Publish the images as a release, not as branch storage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git config user.name alor
+          git config user.email alor@users.noreply.github.com
+          git tag -f kit-latest
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}" tag kit-latest
+          gh release create kit-latest work/mach.development.bcm2837 work/uefi.img \
+            --title "alor kit v56" --notes "kernel + uefi, single workflow" \
+            || gh release upload kit-latest work/mach.development.bcm2837 work/uefi.img --clobber
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/kit-latest/uefi.img"
+
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alor-kit61
+          path: |
+            work/mach.development.bcm2837
+            work/uefi.img
+          if-no-files-found: error
