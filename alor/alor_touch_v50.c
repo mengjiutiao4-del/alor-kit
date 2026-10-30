@@ -419,8 +419,7 @@ ft_rail_on(const char *name, uint32_t mv)
 		 * enable=0 on a rail nobody voted for. If this still kills the
 		 * interface, the write is the poison, not the voltage. */
 		done = macan_rpmh_vote(name, 0, 0, 0);
-		printf("ALOR TOUCH: %s inert write -> %d
-", name, done);
+		printf("ALOR TOUCH: %s inert write -> %d\n", name, done);
 		return done != 0;
 	}
 	/* macan_rpmh_vote only uses ACTIVE TCS 0 and gives up if the GPU or the
