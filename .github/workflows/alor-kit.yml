@@ -1,4 +1,4 @@
-name: alor-kit50
+name: alor-kit51
 
 on:
   workflow_dispatch:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Overlay the alor touch driver
         run: |
-          cp alor/alor_touch_v50.c kernel/files/bsd/dev/alor_touch.c
+          cp alor/alor_touch_v51.c kernel/files/bsd/dev/alor_touch.c
           test "$(grep -c 'macan_rpmh_vote' kernel/files/bsd/dev/alor_touch.c)" -ge 3 || { echo 'v47 driver missing the locked voter'; exit 1; }
           # kernel.patch already lists bsd/dev/alor_touch.c and macan_input.c already
           # calls alor_touch_init(); registering it a second time links two copies.
@@ -51,7 +51,7 @@ jobs:
           grep -q 'alor_touch_init();' kernel/files/bsd/dev/macan_input.c || { echo 'macan_input.c lost the call'; exit 1; }
 
       - name: Gate the driver source before the long build
-        run: python3 alor/check_c.py kernel/files/bsd/dev/alor_touch.c --require "v50 as found"
+        run: python3 alor/check_c.py kernel/files/bsd/dev/alor_touch.c --require "v51 as found"
 
       - name: Host tools, stage 1
         run: ./xnu-deps/setup.sh --stage1
@@ -67,7 +67,7 @@ jobs:
           mkdir -p work
           bash tools/xnu-build.sh -j"$(nproc)" -k 2>&1 | tee kernel-build.log
           cp xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837 work/mach.development.bcm2837
-          grep -c 'v50 as found' work/mach.development.bcm2837 >/dev/null || { echo 'the built kernel is not v47'; exit 1; }
+          grep -c 'v51 as found' work/mach.development.bcm2837 >/dev/null || { echo 'the built kernel is not v47'; exit 1; }
 
       - name: Patch the loader to show the kernel log and never reset the handset
         run: |
@@ -123,14 +123,14 @@ jobs:
           git tag -f kit-latest
           git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}" tag kit-latest
           gh release create kit-latest work/mach.development.bcm2837 work/uefi.img \
-            --title "alor kit v50" --notes "kernel + uefi, single workflow" \
+            --title "alor kit v51" --notes "kernel + uefi, single workflow" \
             || gh release upload kit-latest work/mach.development.bcm2837 work/uefi.img --clobber
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/kit-latest/uefi.img"
 
 
       - uses: actions/upload-artifact@v4
         with:
-          name: alor-kit50
+          name: alor-kit51
           path: |
             work/mach.development.bcm2837
             work/uefi.img
