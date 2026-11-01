@@ -1,0 +1,53 @@
+<inline asm>:289:3: error: instruction requires: el3
+  289 |   smc #0
+      |   ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+loader.c:1074:20: error: instruction requires: el3
+ 1074 |  __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3)
+      |                    ^
+<inline asm>:1:2: note: instantiated into assembly here
+    1 |         smc #0
+      |         ^
+9 errors generated.
+exit 1
