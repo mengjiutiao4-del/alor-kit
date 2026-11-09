@@ -36,6 +36,8 @@ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
 #include <sys/macan_input.h>
 extern void redwood_touch_post(uint32_t type, uint32_t finger, uint32_t x, uint32_t y);
+extern int macan_rpmh_vote(const char *resource, uint32_t millivolts, uint32_t mode,
+    uint32_t enable);
 extern PE_state_t PE_state;
 extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
 extern uint64_t kvtophys(vm_offset_t va);
@@ -1858,7 +1860,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v91 as found");
+	ft_pin_dump("v92 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
@@ -1900,6 +1902,13 @@ alor_fts_run(void)
 			ft_sleep(5000);
 		}
 	}
+	/* The loader's TZ IO proxy is refused on this board.  The kit's own RPMh
+	 * voter (macan_power.c, already used by the WiFi bring-up) is the working
+	 * path: vote L4B_E0 1.8 V and L16B_E0 2.8 V from the running kernel. */
+	printf("ALOR TOUCH: voting touch rails via macan_power\n");
+	int rv1 = macan_rpmh_vote("L4B_E0", 1800, 3, 1);
+	int rv2 = macan_rpmh_vote("L16B_E0", 2800, 3, 1);
+	printf("ALOR TOUCH: rails L4B %d L16B %d\n", rv1, rv2);
 	ft_gpio(FT_RESET, 0, 0, 8, 1);
 	printf("ALOR TOUCH: reset cfg %#x io %#x\n", ft_pin_raw(FT_RESET, 0), ft_pin_raw(FT_RESET, 4));
 	alor_step(13, (ft_pin_raw(FT_RESET, 0) & 0x20u) == 0);
@@ -2163,7 +2172,7 @@ ft_thread(void *arg, wait_result_t result)
 	alor_blip(5);
 	ft.smmu = ml_io_map(FT_SMMU_PA, 0x1000);
 	alor_blip(6);
-	if (!ft.gcc || !ft.tlmm || !ft.se || !ft.gpi || !ft.smmu || !ft_qup) {
+	if (!ft.gcc || !ft.se || !ft.gpi || !ft.smmu || !ft_qup) {
 		goto out;
 	}
 	alor_blip(7);
