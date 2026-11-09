@@ -1,4 +1,4 @@
-/*
+﻿/*
  * FUXI touch: ST FTS (FTM5) on QUP1 SE4, SPI through QUP1 GPI DMA (polled).
  * Hardware facts and protocol: research/touch/hw-report.md; first proven in
  * the loader (shim/fuxi-probe/probe.c request 0x55). The loader votes the
@@ -1502,7 +1502,12 @@ alor_spi_duplex(const uint8_t *tx, unsigned len, uint8_t *rx)
 	if (ft_on_geni) {
 		return ft_geni_xfer(tx, rx, len);
 	}
-	return ft_bb_xfer(tx, rx, len);
+	if (ft.tlmm) {
+		return ft_bb_xfer(tx, rx, len);
+	}
+	/* No bit-bang without a TLMM mapping.  Returning an error (instead of
+	 * parking) is what lets the caller reach the GENI bring-up scan. */
+	return EIO;
 }
 
 static int
@@ -1854,7 +1859,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v93 as found");
+	ft_pin_dump("v94 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
@@ -2158,14 +2163,13 @@ ft_thread(void *arg, wait_result_t result)
 	alor_stage = 1;
 	ft.gcc = ml_io_map(FT_GCC_PA, 0x1f0000);
 	alor_blip(2);
-	/* The 900E was the DT window base, not the pin base: on this Canoe TLMM the
-	 * pin registers are at +0x100000 (Android pinctrl-canoe and the firmware's
-	 * own TLMMDxe both use 0x0f100000).  The loader proved 0x0f100000 works and
-	 * already muxed the pins; map the same base here for the pad helpers and
-	 * the bit-bang fallback. */
-	ft.tlmm = ml_io_map(0x0f100000u, 0x40000);
-	ft.tlmm_hi = ml_io_map(0x0f100000u + 0xa0000u, 0x2000);
-	printf("ALOR TOUCH: tlmm=%p tlmm_hi=%p\n", (void *)ft.tlmm, (void *)ft.tlmm_hi);
+	/* v93 mapped 0x0f100000 and the first kernel read of pin 55 hung (v92's
+	 * correct base still cannot be touched once the rails are on).  Keep the
+	 * kernel out of TLMM entirely; the loader already muxed 48..51 to QUP1
+	 * SE4 and set 55/161, and the kernel only speaks GENI. */
+	ft.tlmm = 0;
+	ft.tlmm_hi = 0;
+	printf("ALOR TOUCH: TLMM left to the loader\n");
 	alor_blip(3);
 	ft.se = ml_io_map(FT_SE_PA, 0x4000);
 	ft_qup = ml_io_map(FT_QUP_PA, 0x1000);
@@ -2344,3 +2348,4 @@ alor_touch_init(void)
 		thread_deallocate(thread);
 	}
 }
+
