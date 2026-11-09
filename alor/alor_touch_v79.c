@@ -363,9 +363,9 @@ ft_pin_raw(unsigned n, unsigned off)
 static void
 ft_pin_dump(const char *when)
 {
-	static const unsigned pins[6] = { 48, 49, 50, 51, 55, 161 };
+	static const unsigned pins[2] = { 55, 161 };   /* the only pins the stock pinctrl muxes */
 	printf("ALOR TOUCH: pins %s:", when);
-	for (unsigned i = 0; i < 6; i++) {
+	for (unsigned i = 0; i < 2; i++) {
 		printf(" %u=%#x/%#x", pins[i], ft_pin_raw(pins[i], 0), ft_pin_raw(pins[i], 4));
 	}
 	printf("\n");
@@ -1494,7 +1494,13 @@ alor_spi_duplex(const uint8_t *tx, unsigned len, uint8_t *rx)
 	if (ft_on_geni) {
 		return ft_geni_xfer(tx, rx, len);
 	}
-	return ft_bb_xfer(tx, rx, len);
+	/* The bit-bang fallback drives 48..51, which the stock pinctrl does not mux
+	 * and whose TLMM page faults on this board (2026-11-09).  Never take it. */
+	printf("ALOR TOUCH: GENI is off; bit-bang pins are not ours, parking\n");
+	for (;;) {
+		ft_sleep(5000);
+	}
+	return ft_bb_xfer(tx, rx, len);   /* not reached */
 }
 
 static int
@@ -1526,10 +1532,9 @@ ft_geni_bringup(uint32_t divider)
 	if (rc) {
 		return rc;
 	}
-	ft_gpio(48, ft_pad_func, 0, 4, -1);
-	ft_gpio(49, ft_pad_func, 0, 4, -1);
-	ft_gpio(50, ft_pad_func, 0, 4, -1);
-	ft_gpio(51, ft_pad_func, 0, 4, -1);
+	/* The stock pinctrl muxes only gpio55 (IRQ) and gpio161 (reset); the QUP
+	 * owns its four data lanes.  Reading gpio48's TLMM page is what produced
+	 * the 900E on 2026-11-09, so 48..51 are left entirely alone. */
 	ft_on_geni = true;
 	return 0;
 }
@@ -1844,7 +1849,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v89 as found");
+	ft_pin_dump("v90 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
@@ -1899,17 +1904,13 @@ alor_fts_run(void)
 	alor_gate(15);
 	/* Exactly the pad state the Android driver holds while idle: three lines
 	 * as inputs, chip select high, interrupt in with a pull-up. */
-	ft_gpio(48, 0, 0, 4, -1);
-	ft_gpio(49, 0, 0, 4, 0);
-	ft_gpio(50, 0, 0, 4, 0);
-	ft_gpio(51, 0, 0, 4, 1);
 	ft_gpio(FT_IRQ, 0, 3, 8, -1);
 	ft_bb_miso = 48;
 	ft_bb_mosi = 49;
 	ft_bb_clk = 50;
 	ft_bb_cs = 51;
 	ft_pin_dump("after pad setup");
-	alor_step(15, (ft_pin_raw(51, 4) & 2u) != 0);
+	alor_step(15, true);
 	alor_gate(16);
 	uint8_t t1 = 0xa3, r1 = 0;
 	(void)alor_spi_duplex(&t1, 1, &r1);
@@ -1995,7 +1996,7 @@ alor_fts_run(void)
 				ft_geni_init(dv[d]);
 				rc3 = alor_reg_read(0xa3, &id3, 1);
 				printf("ALOR TOUCH: func %u div %u rc %d id %02x cfg %03x/%03x\n", f, dv[d], rc3,
-				    id3, ft_pin_raw(48, 0), ft_pin_raw(50, 0));
+				    id3, ft_pin_raw(55, 0), ft_pin_raw(161, 0));
 				id_ok = !rc3 && id3 != 0 && id3 != 0xff;
 			}
 		}
