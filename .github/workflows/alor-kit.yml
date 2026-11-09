@@ -1,4 +1,4 @@
-﻿name: alor-kit110
+﻿name: alor-kit111
 
 on:
   workflow_dispatch:
@@ -51,7 +51,7 @@ jobs:
           grep -q 'alor_touch_init();' kernel/files/bsd/dev/macan_input.c || { echo 'macan_input.c lost the call'; exit 1; }
 
       - name: Gate the driver source before the long build
-        run: python3 alor/check_c.py kernel/files/bsd/dev/alor_touch.c --require "v92 as found"
+        run: python3 alor/check_c.py kernel/files/bsd/dev/alor_touch.c --require "v93 as found"
 
       # Knowledge, 2026-11-01: the root volume already injects /redwood/lib/libredwood.dylib into
       # backboardd through /etc/inject.conf, so this userspace build is a spare, not the missing piece.
@@ -107,7 +107,7 @@ jobs:
           bash tools/xnu-build.sh -j"$jobs" -k > kernel-build.log 2>&1 && echo "rc=0" > kernel-step.state || echo "rc=$?" > kernel-step.state
           built=xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837
           cp "$built" work/mach.development.bcm2837
-          grep -q 'v92 as found' work/mach.development.bcm2837
+          grep -q 'v93 as found' work/mach.development.bcm2837
       - name: Patch the loader to show the kernel log and never reset the handset
         run: |
           python3 - <<'PY'
@@ -193,7 +193,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: alor-kit110
+          name: alor-kit111
           path: |
             work/mach.development.bcm2837
             work/uefi.img
@@ -227,4 +227,5 @@ jobs:
           git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}" HEAD:diag
           echo "diag at https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/diag/diag-kernel.log"
           test "${{ job.status }}" = "success"
+
 

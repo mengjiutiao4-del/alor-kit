@@ -1502,13 +1502,7 @@ alor_spi_duplex(const uint8_t *tx, unsigned len, uint8_t *rx)
 	if (ft_on_geni) {
 		return ft_geni_xfer(tx, rx, len);
 	}
-	/* The bit-bang fallback drives 48..51, which the stock pinctrl does not mux
-	 * and whose TLMM page faults on this board (2026-11-09).  Never take it. */
-	printf("ALOR TOUCH: GENI is off; bit-bang pins are not ours, parking\n");
-	for (;;) {
-		ft_sleep(5000);
-	}
-	return ft_bb_xfer(tx, rx, len);   /* not reached */
+	return ft_bb_xfer(tx, rx, len);
 }
 
 static int
@@ -1860,7 +1854,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v92 as found");
+	ft_pin_dump("v93 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
@@ -1922,6 +1916,12 @@ alor_fts_run(void)
 	alor_gate(15);
 	/* Exactly the pad state the Android driver holds while idle: three lines
 	 * as inputs, chip select high, interrupt in with a pull-up. */
+	/* Bit-bang needs the four SPI lanes as GPIO; the loader leaves them muxed
+	 * to QUP1 SE4, so take them back here (same pads the stock DT names). */
+	ft_gpio(48, 0, 0, 4, -1);
+	ft_gpio(49, 0, 0, 4, 0);
+	ft_gpio(50, 0, 0, 4, 0);
+	ft_gpio(51, 0, 0, 4, 1);
 	ft_gpio(FT_IRQ, 0, 3, 8, -1);
 	ft_bb_miso = 48;
 	ft_bb_mosi = 49;
@@ -2158,12 +2158,14 @@ ft_thread(void *arg, wait_result_t result)
 	alor_stage = 1;
 	ft.gcc = ml_io_map(FT_GCC_PA, 0x1f0000);
 	alor_blip(2);
-	/* The loader now owns gpio55 (IRQ) and gpio161 (reset).  XNU reading either
-	 * TLMM page took a 900E on 2026-11-09 -- v89 named pin 48, v90 named pin 55 --
-	 * so this kernel never maps TLMM; every pad helper returns early. */
-	ft.tlmm = 0;
-	ft.tlmm_hi = 0;
-	printf("ALOR TOUCH: TLMM left to the loader\n");
+	/* The 900E was the DT window base, not the pin base: on this Canoe TLMM the
+	 * pin registers are at +0x100000 (Android pinctrl-canoe and the firmware's
+	 * own TLMMDxe both use 0x0f100000).  The loader proved 0x0f100000 works and
+	 * already muxed the pins; map the same base here for the pad helpers and
+	 * the bit-bang fallback. */
+	ft.tlmm = ml_io_map(0x0f100000u, 0x40000);
+	ft.tlmm_hi = ml_io_map(0x0f100000u + 0xa0000u, 0x2000);
+	printf("ALOR TOUCH: tlmm=%p tlmm_hi=%p\n", (void *)ft.tlmm, (void *)ft.tlmm_hi);
 	alor_blip(3);
 	ft.se = ml_io_map(FT_SE_PA, 0x4000);
 	ft_qup = ml_io_map(FT_QUP_PA, 0x1000);
