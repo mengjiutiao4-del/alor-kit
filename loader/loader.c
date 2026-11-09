@@ -755,9 +755,10 @@ tz2_rails(void)
 
 /* The AP's TLMM is not readable from XNU on this board: on 2026-11-09 the v89
  * driver named pin 48 and the v90 driver named pin 55, both at the stock DTB's
- * 0x0f000000 base, and both times the read took a 900E.  The firmware still owns
- * the block, so do the only two pins the stock pinctrl names -- gpio55 (IRQ) and
- * gpio161 (reset) -- here, before the kernel runs.  The kernel then never maps
+ * 0x0f000000 base, and both times the read took a 900E.  Android's pinctrl
+ * debugfs says the QUP1 SE4 lanes are gpio48..51 with function value 1
+ * (qup1_se4_l0..l3 = 170..173 in the driver table), and gpio55/161 are plain
+ * GPIO.  Do all six here, BEFORE the rails come up, then the kernel never maps
  * TLMM and only speaks QUP1 SE4. */
 static int
 cmdline_has(const char *text, const char *needle)
@@ -782,6 +783,20 @@ alor_touch_pins(void)
  volatile uint32_t *irq = tlmm + (55u * 0x1000u) / 4u;
  volatile uint32_t *rst = tlmm + (161u * 0x1000u) / 4u;
  uint32_t cfg;
+ volatile uint32_t *spi;
+ unsigned i;
+ static const unsigned spi_pins[4] = { 48u, 49u, 50u, 51u };
+ for (i = 0; i < 4; i++) {
+  unsigned n = spi_pins[i];
+  spi = tlmm + (n * 0x1000u) / 4u;
+  cfg = spi[0];
+  spi[0] = (cfg & ~0x3ffu) | (1u << 2) | ((4u / 2u - 1u) << 6);
+  if (cfg & (1u << 11)) spi[0] |= 1u << 12;
+  if (n != 48u) spi[0] |= 0x200u;    /* MOSI/CLK/CS output, MISO input */
+  if (n == 51u) spi[1] = 2u;         /* CS deasserted */
+ }
+ __asm__ volatile ("dsb sy");
+ print("ALOR PINS: spi 48..51 func1\n");
  cfg = irq[0];
  irq[0] = (cfg & ~0x3ffu) | 3u | ((8u / 2u - 1u) << 6);
  if (cfg & (1u << 11)) irq[0] |= 1u << 12;
@@ -1901,10 +1916,12 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
  print("cmdline: %s\n", ba->commandLine);
  if (kernel_mpidr != this_mpidr) {
   print("the kernel will run on core %x (this is core %x)\n", kernel_mpidr, this_mpidr);
- tz2_rails();
+ /* Pins first, rails second: Android's own pinctrl shows the touch rails are
+  * what makes a later TLMM access fatal, and a no-power pin setup is safe. */
  if (cmdline_has(ba->commandLine, "alor_pins=1")) {
   alor_touch_pins();
  }
+ tz2_rails();
  }
  print("jumping to %x\n", entry_va + slide);
  flush_log();
