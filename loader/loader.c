@@ -779,7 +779,11 @@ cmdline_has(const char *text, const char *needle)
 static void
 alor_touch_pins(void)
 {
- volatile uint32_t *tlmm = (volatile uint32_t *)(uintptr_t)0x0f000000ULL;
+ /* The DT node is pinctrl@f000000 with a 16 MiB window, but on this Canoe
+  * TLMM the pin registers start at +0x100000: the downstream pinctrl-canoe
+  * pin table holds 0x100000 + 0x1000*n, and a read at 0x0f0xxxxx (the hole)
+  * hangs the bus -- exactly the 900E v89/v90 took on pins 48 and 55. */
+ volatile uint32_t *tlmm = (volatile uint32_t *)(uintptr_t)0x0f100000ULL;
  volatile uint32_t *irq = tlmm + (55u * 0x1000u) / 4u;
  volatile uint32_t *rst = tlmm + (161u * 0x1000u) / 4u;
  uint32_t cfg;

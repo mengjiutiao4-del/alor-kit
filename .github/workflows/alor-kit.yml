@@ -1,4 +1,4 @@
-name: alor-kit108
+name: alor-kit109
 
 on:
   workflow_dispatch:
@@ -193,7 +193,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: alor-kit108
+          name: alor-kit109
           path: |
             work/mach.development.bcm2837
             work/uefi.img
