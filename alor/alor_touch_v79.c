@@ -301,6 +301,7 @@ sweet_hid_touch(int finger, int down, int x, int y)
 }
 
 /* TLMM CTL: pull [1:0] (1 down, 3 up), func [5:2], drive [8:6] = mA/2-1, OE [9]. */
+static int ft_pin_paused;   /* one 3 s pause, only before the first pad access */
 static void
 ft_gpio(unsigned n, unsigned func, unsigned pull, unsigned ma, int out)
 {
@@ -314,6 +315,10 @@ ft_gpio(unsigned n, unsigned func, unsigned pull, unsigned ma, int out)
 	/* Printed before the first access: v87 came back from a crash dump without ever
 	 * naming which pad it touched, and a report written after the fault cannot name it. */
 	printf("ALOR TOUCH: setting pin %u func %u at %#x\n", n, func, (unsigned)(base + off));
+	if (!ft_pin_paused) {
+		ft_pin_paused = 1;
+		ft_sleep(3000);   /* v89 diagnostic: let the loader pull the address before the fault */
+	}
 	/* Byte for byte what macan's goodix driver does on the pads; the vendor
 	 * TLMM has no use for the bits this file used to preserve. */
 	if (out >= 0) {
@@ -344,6 +349,10 @@ ft_pin_raw(unsigned n, unsigned off)
 	 * "starting in 6 s" and the first pin dump and came back as a crash dump, and a report
 	 * that only prints once the read returns cannot name the address that faulted. */
 	printf("ALOR TOUCH: reading pin %u off %#x from %#x\n", n, off, (unsigned)(base + o));
+	if (!ft_pin_paused) {
+		ft_pin_paused = 1;
+		ft_sleep(3000);   /* v89 diagnostic: let the loader pull the address before the fault */
+	}
 	if (n >= 160 && ft.tlmm_hi) {
 		base = ft.tlmm_hi;
 		o = FT_GPIO(n) - 0xa0000u;
@@ -1835,7 +1844,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v88 as found");
+	ft_pin_dump("v89 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
