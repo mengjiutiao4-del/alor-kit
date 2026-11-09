@@ -1859,7 +1859,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v94 as found");
+	ft_pin_dump("v95 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
@@ -2197,10 +2197,12 @@ ft_thread(void *arg, wait_result_t result)
 	alor_stage = 2;
 	int ierr = 0;
 	alor_blip(9);
-	/* v25 leaves GCC alone: bit-banging needs no serial-engine clock, and a
-	 * wrong clock offset brings the whole handset down. */
-	if (0 && alor_ws >= 2 && (ierr = ft_clock())) { alor_stage = 3; printf("ALOR TOUCH: clock %d\n", ierr); goto out; }
-	if (ierr) {
+	/* GENI returned EBUSY 16 for every function until the SE4 branch was
+	 * unhalted.  The offsets in ft_clock() are the gcc-sm8750 truth
+	 * (0x183cc halt, 0x52008 vote bit 26); it was simply never called. */
+	if ((ierr = ft_clock())) {
+		alor_stage = 3;
+		printf("ALOR TOUCH: clock %d\n", ierr);
 		goto out;
 	}
 
@@ -2348,4 +2350,5 @@ alor_touch_init(void)
 		thread_deallocate(thread);
 	}
 }
+
 
