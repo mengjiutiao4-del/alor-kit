@@ -753,6 +753,54 @@ tz2_rails(void)
  }
 }
 
+/* The AP's TLMM is not readable from XNU on this board: on 2026-11-09 the v89
+ * driver named pin 48 and the v90 driver named pin 55, both at the stock DTB's
+ * 0x0f000000 base, and both times the read took a 900E.  The firmware still owns
+ * the block, so do the only two pins the stock pinctrl names -- gpio55 (IRQ) and
+ * gpio161 (reset) -- here, before the kernel runs.  The kernel then never maps
+ * TLMM and only speaks QUP1 SE4. */
+static int
+cmdline_has(const char *text, const char *needle)
+{
+ for (; *text; text++) {
+  const char *a = text, *b = needle;
+  while (*a && *b && *a == *b) {
+   a++;
+   b++;
+  }
+  if (*b == 0) {
+   return 1;
+  }
+ }
+ return 0;
+}
+
+static void
+alor_touch_pins(void)
+{
+ volatile uint32_t *tlmm = (volatile uint32_t *)(uintptr_t)0x0f000000ULL;
+ volatile uint32_t *irq = tlmm + (55u * 0x1000u) / 4u;
+ volatile uint32_t *rst = tlmm + (161u * 0x1000u) / 4u;
+ uint32_t cfg;
+ cfg = irq[0];
+ irq[0] = (cfg & ~0x3ffu) | 3u | ((8u / 2u - 1u) << 6);
+ if (cfg & (1u << 11)) irq[0] |= 1u << 12;
+ __asm__ volatile ("dsb sy");
+ print("ALOR PINS: irq55 cfg %x io %x\n", (uint64_t)irq[0], (uint64_t)irq[1]);
+ cfg = rst[0];
+ rst[0] = (cfg & ~0x3ffu) | ((8u / 2u - 1u) << 6) | 0x200u;
+ if (cfg & (1u << 11)) rst[0] |= 1u << 12;
+ rst[1] = 2u;                       /* reset released, high */
+ __asm__ volatile ("dsb sy");
+ print("ALOR PINS: reset161 cfg %x io %x\n", (uint64_t)rst[0], (uint64_t)rst[1]);
+ BS->stall(20000);
+ rst[1] = 0u;
+ BS->stall(20000);
+ rst[1] = 2u;
+ BS->stall(300000);                 /* the vendor reset timing */
+ print("ALOR PINS: reset pulsed cfg %x io %x\n", (uint64_t)rst[0], (uint64_t)rst[1]);
+}
+
 static void wdt_pet(void);
 static int wdt_armed;
 static const struct kernel_live *running_live;
@@ -1854,6 +1902,9 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
  if (kernel_mpidr != this_mpidr) {
   print("the kernel will run on core %x (this is core %x)\n", kernel_mpidr, this_mpidr);
  tz2_rails();
+ if (cmdline_has(ba->commandLine, "alor_pins=1")) {
+  alor_touch_pins();
+ }
  }
  print("jumping to %x\n", entry_va + slide);
  flush_log();

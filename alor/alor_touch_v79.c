@@ -305,6 +305,9 @@ static int ft_pin_paused;   /* one 3 s pause, only before the first pad access *
 static void
 ft_gpio(unsigned n, unsigned func, unsigned pull, unsigned ma, int out)
 {
+	if (!ft.tlmm) {
+		return;
+	}
 	/* Pins past 159 live above the window the low pins use. */
 	vm_offset_t base = ft.tlmm;
 	uint32_t off = FT_GPIO(n);
@@ -343,6 +346,9 @@ ft_gpio(unsigned n, unsigned func, unsigned pull, unsigned ma, int out)
 static uint32_t
 ft_pin_raw(unsigned n, unsigned off)
 {
+	if (!ft.tlmm) {
+		return 0;
+	}
 	vm_offset_t base = ft.tlmm;
 	uint32_t o = FT_GPIO(n);
 	/* Named before the read, not after: the run of 2026-11-02 (v87) stopped between
@@ -1654,6 +1660,9 @@ alor_frame_decode(const uint8_t *buf, int *ids, int *xs, int *ys)
 static void
 ft_pin_level(unsigned n, int level)
 {
+	if (!ft.tlmm) {
+		return;
+	}
 	vm_offset_t base = ft.tlmm;
 	uint32_t off = FT_GPIO(n);
 	if (n >= 160 && ft.tlmm_hi) {
@@ -1849,7 +1858,7 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 8;
-	ft_pin_dump("v90 as found");
+	ft_pin_dump("v91 as found");
 	alor_gate(10);
 	bool rails = false, vddi_ok = false, avdd_ok = false;
 	if (rails_mode) {
@@ -2059,7 +2068,7 @@ alor_fts_run(void)
 		}
 	}
 	for (;;) {
-		bool irq = !(ft_rd(ft.tlmm, FT_GPIO(FT_IRQ) + 4) & 1u);
+		bool irq = ft.tlmm ? !(ft_rd(ft.tlmm, FT_GPIO(FT_IRQ) + 4) & 1u) : true;
 		if (irq || (++frames & 7u) == 0) {
 			memset(frame, 0, sizeof(frame));
 			if (alor_reg_read(0x01, frame, sizeof(frame))) {
@@ -2140,27 +2149,12 @@ ft_thread(void *arg, wait_result_t result)
 	alor_stage = 1;
 	ft.gcc = ml_io_map(FT_GCC_PA, 0x1f0000);
 	alor_blip(2);
-	/* Two changes at once, both forced by the vendor DTB (pinctrl@f000000, 4 KiB per pin):
-	 *  - ml_io_map, not ml_io_map_wcomb. Reads through a write-combining mapping are not
-	 *    defined on arm64: writes buffer fine, which is why our pin dumps kept "looking"
-	 *    correct while every MISO read came back 0 -- the exact symptom this driver has had
-	 *    since it was written. The kit's own GPIO code (macan_power.c:163) uses ml_io_map.
-	 *  - 0x110000, not 0x40000: the old window stopped at pin 63, so gpio161 (the reset line)
-	 *    was outside every mapping and only the bogus +0xa0000 second window reached it.
-	 * The earlier "wide window kills the kernel inside ml_io_map" note was taken at the wrong
-	 * base (0x0f100000), i.e. outside the region the DT assigns to TLMM -- that failure is
-	 * evidence against that base, not against a wide map.
-	 */
-	printf("ALOR TOUCH: mapping TLMM low now\n");
-	ft.tlmm = ml_io_map(FT_TLMM_PA, 0x40000);        /* pins 0..63, covers 48..55 */
-	printf("ALOR TOUCH: mapping TLMM high now\n");
-	/* Two small windows on purpose. The 1 MiB map at the correct base was tried first and the
-	 * box died about 30 s into boot with no driver line reaching us, which is the same shape
-	 * as the old "wide window kills the kernel inside ml_io_map" note -- so keep each mapping
-	 * small, and point the second one at where gpio161 really lives:
-	 * 0x0f000000 + 160 * 0x1000 = 0x0f0a0000, so FT_GPIO(161) - 0xa0000 = 0x1000 below. */
-	ft.tlmm_hi = ml_io_map(FT_TLMM_PA + 0xa0000u, 0x2000);
-	printf("ALOR TOUCH: tlmm=%p tlmm_hi=%p\n", (void *)ft.tlmm, (void *)ft.tlmm_hi);
+	/* The loader now owns gpio55 (IRQ) and gpio161 (reset).  XNU reading either
+	 * TLMM page took a 900E on 2026-11-09 -- v89 named pin 48, v90 named pin 55 --
+	 * so this kernel never maps TLMM; every pad helper returns early. */
+	ft.tlmm = 0;
+	ft.tlmm_hi = 0;
+	printf("ALOR TOUCH: TLMM left to the loader\n");
 	alor_blip(3);
 	ft.se = ml_io_map(FT_SE_PA, 0x4000);
 	ft_qup = ml_io_map(FT_QUP_PA, 0x1000);
@@ -2228,7 +2222,7 @@ ft_thread(void *arg, wait_result_t result)
 				ft_report(0);   /* release fingers held when the display went off */
 			}
 		}
-		bool irq = !(ft_rd(ft.tlmm, FT_GPIO(FT_IRQ) + 4) & 1u);
+		bool irq = ft.tlmm ? !(ft_rd(ft.tlmm, FT_GPIO(FT_IRQ) + 4) & 1u) : true;
 		if (irq) {
 			last_irq = now;
 			if (!irq_seen) {
