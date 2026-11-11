@@ -1,4 +1,4 @@
-name: alor-kit115
+name: alor-kit116
 
 on:
   workflow_dispatch:
@@ -107,7 +107,7 @@ jobs:
           bash tools/xnu-build.sh -j"$jobs" -k > kernel-build.log 2>&1 && echo "rc=0" > kernel-step.state || echo "rc=$?" > kernel-step.state
           built=xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837
           cp "$built" work/mach.development.bcm2837
-          grep -q 'v95 as found' work/mach.development.bcm2837
+          grep -q 'the loader owns the rails' work/mach.development.bcm2837 && grep -q 'alor_rails' work/mach.development.bcm2837
       - name: Patch the loader to show the kernel log and never reset the handset
         run: |
           python3 - <<'PY'

@@ -359,7 +359,7 @@ extern int macan_rpmh_vote(const char *resource, uint32_t millivolts, uint32_t m
 #define RH_DB_HEADER   144u
 #define RH_DB_ENTRY    24u
 #define FT_VDDI_MV     1800u      /* vcc_1v8 = RPMh L4B_E0 */
-#define FT_AVDD_MV     3300u      /* vdd_2v8 = RPMh L16B_E0 */
+#define FT_AVDD_MV     2800u      /* vdd_2v8 = RPMh L16B_E0; the name says 2.8 V */
 
 extern vm_offset_t ml_io_map_wcomb(vm_offset_t, vm_size_t);
 
@@ -439,35 +439,50 @@ ft_rails_map(void)
 static uint32_t
 ft_ldo_mode(void)
 {
-	int mode = 4;
+	int mode = 3;
 	(void)PE_parse_boot_argn("wifi_ready", &mode, sizeof(mode));
 	if (mode != 2 && mode != 4 && mode != 7) {
-		mode = 4;
+		mode = 3;
 	}
 	return (uint32_t)mode;
 }
 
-/* How far to go with the rails. This is a boot argument because the two steps
- * carry very different risk:
+/* How far to go with the rails. A boot argument, because the steps carry very
+ * different risk:
  *
- *   alor_rails=1   read cmd-db only. No RSC access, no vote. Proves the
- *                  resource lookup works and prints the VRM addresses.
- *   alor_rails=2   read cmd-db, then vote both rails. This writes to the apps
- *                  RSC at 0x18920000.
- *   (default 2, so a plain run still tries to power the panel)
+ *   alor_rails=0   touch nothing. The loader already voted the rails with its
+ *                  own `oem rails <slot>` command, which runs in firmware
+ *                  where MMIO is known-good. The kernel must then never touch
+ *                  the apps RSC at 0x18920000.
+ *   alor_rails=1   read the cmd-db only (memory at 0x81c60000, no RSC). Prints
+ *                  the VRM addresses so the lookup can be checked.
+ *   alor_rails=2   read cmd-db, then vote both rails through macan_rpmh_vote(),
+ *                  which writes the RSC. Default.
  *
- * The split exists because the project's own handoff notes record that poking
- * the apps RSC directly from the kernel has, in past experiments, silenced the
- * whole box within tens of seconds (投票结果、每秒心跳、loader 的 USB 应答三样
- * 同时消失). Nothing has ever confirmed macan_rpmh_vote() works from XNU on
- * this board -- "macan-power:" appears zero times across every archived
- * capture -- so step 1 is worth doing on its own before trusting step 2. */
+ * Why 0 exists, and why it is now the recommended way: every kernel-side write
+ * to 0x18920000 on this board has ended the run. The handoff notes record the
+ * whole box going quiet within tens of seconds (投票结果、每秒心跳、loader 的
+ * USB 应答三样同时消失), and v79 carries the same account for v83/v84, adding
+ * that v84 died on a read-only peek before any vote went out. On 2026-11-12 a
+ * run at rails mode 7 froze at the Apple boot screen and never returned control
+ * to the loader, so its log was unreachable. Meanwhile the loader's own RAIL
+ * implementation demonstrably works: logs/rails-060727/vote.txt shows
+ *
+ *   RAILS: slot 1 armed, triggering
+ *   RAILS: slot 1 status 1 after 29 polls
+ *   RAILS: cmd 0 addr 40700 status 10101 resp 0
+ *   RAILS: L4B_E0 voted 1800 mV mode 3
+ *   RAILS: L16B_E0 wants 2800 mV mode 3 at RPMh 41700
+ *
+ * i.e. both rails, commands completed, no kernel involved. That is the path
+ * worth using: power from the loader, then let the kernel do nothing but
+ * bit-bang the ID read. */
 static int
 ft_rails_stage(void)
 {
 	int stage = 2;
 	(void)PE_parse_boot_argn("alor_rails", &stage, sizeof(stage));
-	if (stage < 1 || stage > 2) {
+	if (stage < 0 || stage > 2) {
 		stage = 2;
 	}
 	return stage;
@@ -490,10 +505,16 @@ ft_rail_on(const char *name, uint32_t mv)
 	return done != 0;
 }
 
-/* Returns true when both touch rails are up.
+/* Returns true when the touch supplies are believed to be on.
  *
- * "Up" is checked two ways, because the vote's return value only says the RPMh
- * transaction completed -- it does not say the regulator came on:
+ * At stage 0 the loader already voted them, so "on" is an assumption this
+ * driver cannot check -- and deliberately does not try to, because checking
+ * would mean reading the RSC, which is the one access that kills the run. The
+ * driver reports that it is assuming, and then proves or disproves it the only
+ * way that matters: by reading the chip ID.
+ *
+ * At stage 2 "up" is checked two ways, because the vote's return value only
+ * says the RPMh transaction completed -- it does not say the regulator came on:
  *   1. macan_rpmh_vote() reports success for each rail.
  *   2. The RPMh block is read back and must show a non-zero level for the
  *      resource. That is the only feedback the AP gets on this path.
@@ -503,6 +524,11 @@ ft_rails_up(void)
 {
 	bool vddi, avdd;
 	int stage = ft_rails_stage();
+	if (stage == 0) {
+		printf("ALOR TOUCH: alor_rails=0, the loader owns the rails; "
+		    "kernel will not touch the RSC\n");
+		return true;
+	}
 	if (!ft_rails_map()) {
 		printf("ALOR TOUCH: cmd-db unusable; rails stay off\n");
 		return false;
