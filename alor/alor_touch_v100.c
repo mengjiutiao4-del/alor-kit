@@ -503,8 +503,7 @@ ft_ldo_mode(void)
  *
  * Why 0 exists, and why it is now the recommended way: every kernel-side write
  * to 0x18920000 on this board has ended the run. The handoff notes record the
- * whole box going quiet within tens of seconds (投票结果、每秒心跳、loader 的
- * USB 应答三样同时消失), and v79 carries the same account for v83/v84, adding
+ * whole box going quiet within tens of seconds (the vote result, the per-second heartbeat and the loader's USB answers all vanish together), and v79 carries the same account for v83/v84, adding
  * that v84 died on a read-only peek before any vote went out. On 2026-11-12 a
  * run at rails mode 7 froze at the Apple boot screen and never returned control
  * to the loader, so its log was unreachable. Meanwhile the loader's own RAIL
@@ -518,7 +517,17 @@ ft_ldo_mode(void)
  *
  * i.e. both rails, commands completed, no kernel involved. That is the path
  * worth using: power from the loader, then let the kernel do nothing but
- * bit-bang the ID read. */
+ * bit-bang the ID read.
+ *
+ * A cross-reference of every capture in logs/ is what forced this design. Across
+ * 50+ archived runs, 17 captures contain a completed vote and dozens contain
+ * driver output, but the intersection is EMPTY: no session ever had the rails
+ * voted and the driver running at the same time. The reason is structural --
+ * `oem rails` is refused while a kernel runs, and once `oem run` hands control
+ * over, the loader stops servicing commands -- so the combination cannot happen
+ * by accident; it has to be arranged. Until it is, every "id 00" in the archive
+ * came from a chip that was never powered and tests nothing about the protocol.
+ */
 static int
 ft_rails_stage(void)
 {
