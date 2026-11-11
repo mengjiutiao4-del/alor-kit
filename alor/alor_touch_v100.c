@@ -353,11 +353,24 @@ ft_clock(void)
 /*
  * ---- touch rail power-up -------------------------------------------------
  *
- * The FT3683 has two supplies: L4B_E0 (VDDI, 1.8 V) and L16B_E0 (AVDD,
- * 3.3 V). Neither the UEFI loader nor iOS turns them on, so they have to be
- * voted from here. Until this existed the chip was never powered at all --
- * every "one byte a3 -> 00" / "id probe rc 5 id 00" in the archives came from
- * an unpowered part, which says nothing about the protocol.
+ * The FT3683 has two supplies: L4B_E0 (VDDI) and L16B_E0 (AVDD). The live
+ * device tree states both, in logs/dt-ft3683.txt:
+ *     power,vddi_volt <0x1b7740 0x1b7740>   = 1,800,000 uV = 1800 mV
+ *     power,avdd_volt <0x325aa0 0x325aa0>   = 3,300,000 uV = 3300 mV
+ * That is what Android runs this panel at, so it is what this driver asks for.
+ * The loader's own voter uses 2800 mV for L16B_E0 (logs/rails-060727/vote.txt),
+ * the same regulator at a lower set point: likely enough for the part to
+ * answer, but the device tree value is the one the vendor chose.
+ *
+ * Two ways to bring them up, and they are not equally safe:
+ *   - alor_rails=0: the loader votes them with `oem rails <slot>` in firmware,
+ *     where MMIO is known-good. The kernel then never touches the RSC.
+ *   - alor_rails=2 (default): the kernel votes through macan_rpmh_vote(), which
+ *     writes the apps RSC at 0x18920000. Every kernel-side write to that block
+ *     on this board has ended the run.
+ * Until this existed the chip was never powered at all -- every "one byte a3 ->
+ * 00" / "id probe rc 5 id 00" in the archives came from an unpowered part,
+ * which says nothing about the protocol.
  *
  * Evidence that no earlier run ever powered it (checked across all 30+
  * captures in logs/):
@@ -388,7 +401,7 @@ extern int macan_rpmh_vote(const char *resource, uint32_t millivolts, uint32_t m
 #define RH_DB_HEADER   144u
 #define RH_DB_ENTRY    24u
 #define FT_VDDI_MV     1800u      /* vcc_1v8 = RPMh L4B_E0 */
-#define FT_AVDD_MV     2800u      /* vdd_2v8 = RPMh L16B_E0; the name says 2.8 V */
+#define FT_AVDD_MV     3300u      /* RPMh L16B_E0; DT power,avdd_volt = 0x325aa0 */
 
 extern vm_offset_t ml_io_map_wcomb(vm_offset_t, vm_size_t);
 

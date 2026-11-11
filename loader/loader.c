@@ -2398,11 +2398,18 @@ static int
 rail_both(unsigned slot, uint32_t mode, unsigned mask, int is_read)
 {
  int ok = 1;
+ /* Voltages from the live device tree (logs/dt-ft3683.txt), which states both
+  * supplies of this panel outright:
+  *     power,vddi_volt <0x1b7740>  = 1,800,000 uV = 1800 mV
+  *     power,avdd_volt <0x325aa0>  = 3,300,000 uV = 3300 mV
+  * This used to ask for 2800 mV on L16B_E0 because the rail is named vdd_2v8.
+  * The name is left over from another board; Android runs this panel at 3.3 V,
+  * so that is what the firmware asks for too. */
  if (mask & 1) {
   ok = rail_vote("L4B_E0", 1800, mode, slot, is_read) && ok;
  }
  if (mask & 2) {
-  ok = rail_vote("L16B_E0", 2800, mode, slot, is_read) && ok;
+  ok = rail_vote("L16B_E0", 3300, mode, slot, is_read) && ok;
  }
  return ok;
 }
