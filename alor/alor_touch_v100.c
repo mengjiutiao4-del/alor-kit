@@ -996,7 +996,32 @@ ft_poll(bool deliver)
 	return 0;
 }
 
-/* ---- FT3683 high-bandwidth protocol over the GPI DMA path above ---- */
+/* ---- FT3683 high-bandwidth protocol over the GPI DMA path above ----
+ *
+ * Frame layout, taken from the vendor binary rather than from guesswork. The
+ * project's own disassembly of tp_ft3658u.ko (the same FocalTech family) is in
+ * re/wr.txt and re/xfer.txt; the write path builds its header like this:
+ *
+ *     6e10  add  w19, w23, #9     ; total transfer = n + 9
+ *     6e88  sub  w2, w23, #1      ; the count field is n - 1
+ *     6e90  strb wzr, [x20, #1]   ; tx[1] = 0  (write opcode)
+ *     6e98  strb w2,  [x20, #3]   ; tx[3] = count low
+ *     6e9c  strb w8,  [x20]       ; tx[0] = register address
+ *     6ea0  strb w9,  [x20, #2]   ; tx[2] = count high
+ *     6ea8  add  x0, x20, #7      ; payload starts at tx[7]
+ *     6eac  add  x1, x21, #1      ; from caller's buffer + 1
+ *     6eb4  add  w25, w23, #6     ; when the count is zero, length = 4
+ *     6f40  mov  w8, #0xa0        ; tx[3] & 0xa0 is the error test
+ *     6f44  tst  w2, w8
+ *
+ * The vendor's n counts its own address byte, so its n - 1 is this driver's
+ * count and its n + 6 is 7 + count: the two agree exactly. The read path asks
+ * for n + 9 bytes -- seven header, n data, two CRC -- which is also what this
+ * file does. So the framing was already right; what the disassembly settles is
+ * that tx[1] is 0xa0 for a read and 0x00 for a write, that bytes 4..6 are
+ * always zero, that the payload begins at offset 7, and that the error test is
+ * the one used here.
+ */
 static uint16_t
 alor_crc(const uint8_t *p, unsigned n)
 {
