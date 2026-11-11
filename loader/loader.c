@@ -779,11 +779,14 @@ cmdline_has(const char *text, const char *needle)
 static void
 alor_touch_pins(void)
 {
- /* The DT node is pinctrl@f000000 with a 16 MiB window, but on this Canoe
-  * TLMM the pin registers start at +0x100000: the downstream pinctrl-canoe
-  * pin table holds 0x100000 + 0x1000*n, and a read at 0x0f0xxxxx (the hole)
-  * hangs the bus -- exactly the 900E v89/v90 took on pins 48 and 55. */
- volatile uint32_t *tlmm = (volatile uint32_t *)(uintptr_t)0x0f100000ULL;
+ /* GROUND TRUTH from the live handset (Android running, touch working):
+  *   /proc/iomem: 0f000000-0fffffff : f000000.pinctrl pinctrl@f000000
+  *   DT reg      = <0x0 0x0f000000 0x0 0x01000000>, compatible "qcom,alor-tlmm"
+  *   206 pins (0..205), no offset property => pin n at 0x0f000000 + 0x1000*n
+  * The earlier +0x100000 belief came from a downstream pinctrl-canoe.ko note
+  * about SM8850, and it is contradicted by Android's own mapping and by
+  * logs/cap-105442, where a driver built on 0x0f000000 read pin 48 as 0x1803. */
+ volatile uint32_t *tlmm = (volatile uint32_t *)(uintptr_t)0x0f000000ULL;
  volatile uint32_t *irq = tlmm + (55u * 0x1000u) / 4u;
  volatile uint32_t *rst = tlmm + (161u * 0x1000u) / 4u;
  uint32_t cfg;
@@ -1494,6 +1497,7 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
         /* The alor/fuxi touch driver's own dials. Without these the only way to change one
          * behaviour is a rebuild, and every experiment this week cost a boot. */
         const char *wide_keys[] = {"alor_pins=", "alor_reset2=", "alor_geni=", "alor_hid=",
+                                   "alor_bb=", "alor_bb_us=", "alor_rails=",
                                    "alortouchdelay=", "fuxitouchdelay=", "fuxitouch_idle_us=",
                                    "fuxitouch_poll_us=", "fuxitouch_offsuppress="};
         for (unsigned k=0; k<sizeof(wide_keys)/sizeof(wide_keys[0]); k++) {
