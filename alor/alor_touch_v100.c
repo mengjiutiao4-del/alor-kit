@@ -1323,16 +1323,15 @@ alor_fts_run(void)
 	 * chip and a working one looked identical on the panel. */
 	bool id_ok = !rc3 && id3 == 0x36;
 	alor_mark(7, id_ok);
-	alor_verdict(id_ok);
-	if (!id_ok) {
-		/* Redraw for ten seconds. A framebuffer write can be overwritten by
-		 * the console scrolling or by the display's own repaint, and this
-		 * verdict is the only output that survives a hang. */
-		for (unsigned r = 0; r < 100; r++) {
-			ft_sleep(100);
-			alor_verdict(false);
-		}
+	/* Redraw the verdict for ten seconds whatever it says. The kernel console
+	 * shares this framebuffer and writes text straight over the blocks, so a
+	 * single write can vanish under a later printf. Repainting is the only way
+	 * to guarantee the colour is still there when someone looks at the panel. */
+	for (unsigned r = 0; r < 100; r++) {
+		alor_verdict(id_ok);
+		ft_sleep(100);
 	}
+	alor_verdict(id_ok);
 	if (alor_ws <= 8) {
 		alor_done = 1;
 		printf("ALOR TOUCH: stage %u done after id, holding\n", alor_ws);
