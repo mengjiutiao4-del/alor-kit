@@ -2661,6 +2661,16 @@ fb_command(char *cmd)
     fb_reply("FAIL", "mode must be 1-4095");
    } else {
   int ok = rail_both(slot, mode, mask, reading);
+    /* After a vote, ask the same resources what they now hold. A write that
+     * reports success only means the RSC completed the transaction; it does
+     * not say the LDO moved. The read goes back through the same slot with
+     * the read message id, so a non-zero answer is real evidence that the
+     * supply is up -- which is the difference between "the chip is dark" and
+     * "the chip is powered and still silent". */
+    if (ok && !reading) {
+     print("RAILS: readback after the vote, slot %d\n", (uint64_t)slot);
+     rail_both(slot, mode, mask, 1);
+    }
     fb_reply(ok ? "OKAY" : "FAIL", ok ? "both rails voted" : "see the log");
    }
 #endif
