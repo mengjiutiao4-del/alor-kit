@@ -167,16 +167,45 @@ static uint32_t alor_fb_row;
 static void
 alor_blip_c(unsigned n, uint32_t colour)
 {
-	if (!alor_fb || n > 20) {
+	if (!alor_fb || n > 15) {
 		return;
 	}
-	for (unsigned y = 0; y < 36; y++) {
+	/* 64x64 on a 76-pixel pitch. The old 36x36 blocks sat under the console's
+	 * own text and could not be resolved by a webcam, which made every
+	 * framebuffer marker invisible in practice. */
+	for (unsigned y = 0; y < 64; y++) {
 		volatile uint32_t *p = (volatile uint32_t *)(alor_fb +
-		    (vm_size_t)(40 + y) * alor_fb_row + (20 + 44 * n) * 4);
-		for (unsigned x = 0; x < 36; x++) {
+		    (vm_size_t)(60 + y) * alor_fb_row + (24 + 76 * n) * 4);
+		for (unsigned x = 0; x < 64; x++) {
 			p[x] = colour;
 		}
 	}
+}
+
+/* A 240x240 verdict square at the top right, green for success and red for
+ * failure. The console font is far below what a webcam can resolve, so text on
+ * the panel is unreadable from the host -- but a saturated block of colour is
+ * unmistakable at this size. That makes the one fact this driver exists to
+ * establish, "did the chip answer", visible without any log at all. */
+static void
+alor_verdict_c(uint32_t colour)
+{
+	if (!alor_fb) {
+		return;
+	}
+	for (unsigned y = 0; y < 240; y++) {
+		volatile uint32_t *p = (volatile uint32_t *)(alor_fb +
+		    (vm_size_t)(60 + y) * alor_fb_row + 980 * 4);
+		for (unsigned x = 0; x < 240; x++) {
+			p[x] = colour;
+		}
+	}
+}
+
+static void
+alor_verdict(bool ok)
+{
+	alor_verdict_c(ok ? 0x0000ff00u : 0x00ff0000u);
 }
 
 static void
@@ -1237,6 +1266,16 @@ alor_fts_run(void)
 		ft_gpio(FT_PIN_CS, 1, 0, 4, -1);
 	}
 	alor_blip(5);
+	/* Three permanent landmarks at the top of the panel, drawn as soon as the
+	 * framebuffer is mapped and never overwritten:
+	 *   left   blue   -- this build reaches the framebuffer at all
+	 *   middle yellow -- the rails stage returned true
+	 *   right  white  -- the TLMM mapping is present (bit-bang is possible)
+	 * Without these, "nothing on screen" is ambiguous: it can mean the
+	 * framebuffer write failed, the driver never ran, or the panel is dark. */
+	alor_blip_c(10, 0x00ff0000u);
+	alor_blip_c(11, 0x0000ffffu);
+	alor_blip_c(12, 0x00ffffffu);
 	if (alor_ws <= 6) {
 		alor_done = 1;
 		printf("ALOR TOUCH: stage %u done, holding\n", alor_ws);
@@ -1279,7 +1318,21 @@ alor_fts_run(void)
 	}
 	rcfw = alor_reg_read(0xa6, &fw6, 1);
 	printf("ALOR TOUCH: FT3683 id %02x/%02x fw %02x rc %d/%d/%d\n", id3, id9f, fw6, rc3, rc9f, rcfw);
-	alor_blip(7);
+	/* Green only for the ID this panel's chip actually answers with; red for
+	 * anything else. The old marker here was unconditional green, so a silent
+	 * chip and a working one looked identical on the panel. */
+	bool id_ok = !rc3 && id3 == 0x36;
+	alor_mark(7, id_ok);
+	alor_verdict(id_ok);
+	if (!id_ok) {
+		/* Redraw for ten seconds. A framebuffer write can be overwritten by
+		 * the console scrolling or by the display's own repaint, and this
+		 * verdict is the only output that survives a hang. */
+		for (unsigned r = 0; r < 100; r++) {
+			ft_sleep(100);
+			alor_verdict(false);
+		}
+	}
 	if (alor_ws <= 8) {
 		alor_done = 1;
 		printf("ALOR TOUCH: stage %u done after id, holding\n", alor_ws);
