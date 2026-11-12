@@ -1375,20 +1375,36 @@ alor_fts_run(void)
 		}
 	}
 	alor_stage = 10;
+	/* Two ID pairs are accepted on purpose.
+	 *
+	 * This file has always demanded 0xA3==0x36 / 0x9F==0x83, but the FocalTech
+	 * path in goodix_touch.c -- the one FocalTech path in this tree that was
+	 * tested against real hardware (Ace 6T, same SM8845) -- requires 0x56/0x62
+	 * and logs it as "FT3680". Both cannot be right for the same panel, and no
+	 * run has ever confirmed which pair this Neo8 answers with, because every
+	 * capture read back 00/ff.
+	 *
+	 * Accepting both turns the next boot into the experiment: whatever the chip
+	 * says, the driver either proceeds (a real ID) or reports the raw bytes
+	 * (silence). Refusing one of them costs a whole boot to learn nothing. */
+	bool id_a = false, id_b = false;
 	for (unsigned t = 0; t < 5; t++) {
 		rc3 = alor_reg_read(0xa3, &id3, 1);
 		rc9f = alor_reg_read(0x9f, &id9f, 1);
-		if (!rc3 && !rc9f && id3 == 0x36 && id9f == 0x83) {
+		id_a = !rc3 && id3 == 0x36 && id9f == 0x83;
+		id_b = !rc3 && id3 == 0x56 && id9f == 0x62;
+		if (id_a || id_b) {
 			break;
 		}
 		ft_sleep(200);
 	}
 	rcfw = alor_reg_read(0xa6, &fw6, 1);
-	printf("ALOR TOUCH: FT3683 id %02x/%02x fw %02x rc %d/%d/%d\n", id3, id9f, fw6, rc3, rc9f, rcfw);
-	/* Green only for the ID this panel's chip actually answers with; red for
-	 * anything else. The old marker here was unconditional green, so a silent
-	 * chip and a working one looked identical on the panel. */
-	bool id_ok = !rc3 && id3 == 0x36;
+	printf("ALOR TOUCH: FT3683 id %02x/%02x fw %02x rc %d/%d/%d%s\n", id3, id9f, fw6, rc3, rc9f, rcfw,
+	    id_b && !id_a ? " (matched the 56/62 pair)" : "");
+	/* Green for either accepted pair; red only when the chip is silent or
+	 * answers something unrecognised. The old marker here was unconditional
+	 * green, so a silent chip and a working one looked identical on the panel. */
+	bool id_ok = id_a || id_b;
 	alor_mark(7, id_ok);
 	/* Redraw the verdict for ten seconds whatever it says. The kernel console
 	 * shares this framebuffer and writes text straight over the blocks, so a
