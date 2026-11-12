@@ -1518,6 +1518,12 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
         const char *wide_keys[] = {"alor_pins=", "alor_reset2=", "alor_geni=", "alor_hid=",
                                    "alor_bb=", "alor_bb_us=", "alor_rails=",
                                    "alor_handback=",
+                                   /* "alor_pins=" above does NOT cover this one: the
+                                    * prefix test compares the trailing '=' too, so
+                                    * "alor_pins_loader=1" misses at index 9 ('_' vs
+                                    * '=') and the whole command line was refused. The
+                                    * driver reads this dial but never received it. */
+                                   "alor_pins_loader=",
                                    "alortouchdelay=", "fuxitouchdelay=", "fuxitouch_idle_us=",
                                    "fuxitouch_poll_us=", "fuxitouch_offsuppress="};
         for (unsigned k=0; k<sizeof(wide_keys)/sizeof(wide_keys[0]); k++) {
@@ -1565,7 +1571,16 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
               (end-safe == 6 && starts_with(safe, "cpus=") && safe[5]>='1' && safe[5]<='8') ||
               (end-safe == 9 && starts_with(safe, "bootcpu=") && safe[8] >= '0' && safe[8] <= '7') ||
               (end-safe == 9 && starts_with(safe, "debug=0x8")))) {
-            print("macan: unsupported bring-up command line\n");
+            /* Name the token. "unsupported bring-up command line" on its own
+             * cost a full boot to trace back to a single missing key; with the
+             * token in the log the cause is one line of reading. Bounded copy:
+             * `safe` runs to `end` and is not NUL-terminated there. */
+            char refused[40];
+            long rn = end - safe;
+            if (rn > 39) rn = 39;
+            for (long ri = 0; ri < rn; ri++) refused[ri] = safe[ri];
+            refused[rn] = 0;
+            print("macan: unsupported bring-up command line: %s\n", refused);
             return 0;
         }
         safe = end;
