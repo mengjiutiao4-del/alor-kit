@@ -1297,20 +1297,33 @@ alor_fts_run(void)
 	 *
 	 * In bit-bang mode the same four pads are driven as plain GPIO (func 0):
 	 * MISO is an input, MOSI/CLK/CS are outputs, CS idles high. */
-	ft_gpio(FT_IRQ, 0, 3, 8, -1);
-	if (ft.bb) {
-		ft_bb_pin(FT_PIN_MISO, false, false);
-		ft_bb_pin(FT_PIN_MOSI, true, false);
-		ft_bb_pin(FT_PIN_CLK, true, false);
-		ft_bb_pin(FT_PIN_CS, true, true);
-	} else {
-		/* The four lanes stay owned by the QUP once muxed to func 1: the
-		 * vendor pinctrl state sets no output-enable on them (the serial
-		 * engine drives direction), so pass -1 rather than forcing OE. */
-		ft_gpio(FT_PIN_MISO, 1, 0, 4, -1);
-		ft_gpio(FT_PIN_MOSI, 1, 0, 4, -1);
-		ft_gpio(FT_PIN_CLK, 1, 0, 4, -1);
-		ft_gpio(FT_PIN_CS, 1, 0, 4, -1);
+	/* alor_pins_loader=1: the loader owns every pad on this chip.
+	 *
+	 * loader.c:756-762 records why. Reading pin 48 from the kernel took a
+	 * 900E on 2026-11-09, and so did reading pin 55. The loader therefore
+	 * muxes 48..51 to function 1, sets gpio55 as the IRQ input and releases
+	 * reset through gpio161, all before the rails come up, precisely so that
+	 * the kernel never has to map TLMM. Any ft_gpio() call here undoes that
+	 * arrangement and walks straight back into the fault.
+	 *
+	 * With the flag set this whole block is skipped: the pads already hold the
+	 * vendor settings the loader programmed. */
+	if (!pins_loader) {
+		ft_gpio(FT_IRQ, 0, 3, 8, -1);
+		if (ft.bb) {
+			ft_bb_pin(FT_PIN_MISO, false, false);
+			ft_bb_pin(FT_PIN_MOSI, true, false);
+			ft_bb_pin(FT_PIN_CLK, true, false);
+			ft_bb_pin(FT_PIN_CS, true, true);
+		} else {
+			/* The four lanes stay owned by the QUP once muxed to func 1: the
+			 * vendor pinctrl state sets no output-enable on them (the serial
+			 * engine drives direction), so pass -1 rather than forcing OE. */
+			ft_gpio(FT_PIN_MISO, 1, 0, 4, -1);
+			ft_gpio(FT_PIN_MOSI, 1, 0, 4, -1);
+			ft_gpio(FT_PIN_CLK, 1, 0, 4, -1);
+			ft_gpio(FT_PIN_CS, 1, 0, 4, -1);
+		}
 	}
 	alor_blip(5);
 	/* Three permanent landmarks at the top of the panel, drawn as soon as the
@@ -1342,10 +1355,17 @@ alor_fts_run(void)
 	 * low, hold, release, then wait 300 ms before the first transfer. The
 	 * reset pad has no pull in the device tree (pmx_ts_reset_active sets
 	 * bias-disable), so pass pull 0 rather than the 3 used for IRQ. */
-	ft_gpio(FT_RESET, 0, 0, 8, 0);
-	ft_sleep(20);
-	ft_gpio(FT_RESET, 0, 0, 8, 1);
-	ft_sleep(300);
+	if (!pins_loader) {
+		ft_gpio(FT_RESET, 0, 0, 8, 0);
+		ft_sleep(20);
+		ft_gpio(FT_RESET, 0, 0, 8, 1);
+		ft_sleep(300);
+	} else {
+		/* alor_touch_pins() in the loader already pulsed this pad and waited
+		 * the vendor's 300 ms, so the chip is out of reset by the time the
+		 * kernel runs. Touching gpio161 here would be a TLMM access. */
+		printf("ALOR TOUCH: alor_pins_loader=1, reset was done by the loader\n");
+	}
 	alor_blip(6);
 	if (alor_ws <= 7) {
 		alor_done = 1;
@@ -1476,6 +1496,12 @@ ft_thread(void *arg, wait_result_t result)
 	 * the bus every time. Bit-banging touches only the four TLMM pads. */
 	uint32_t bb = 0;
 	(void)PE_parse_boot_argn("alor_bb", &bb, sizeof(bb));
+	/* Set by the runner: the loader has already programmed every pad on this
+	 * chip, so this driver must not touch TLMM at all. See the comment at the
+	 * pad block below for the 900E history behind it. */
+	int pins_loader = 0;
+	(void)PE_parse_boot_argn("alor_pins_loader", &pins_loader,
+	    sizeof(pins_loader));
 	ft.bb = bb != 0;
 	printf("FUXI TOUCH: starting in %u s (poll %u us active, %u us idle, %s)\n", delay_s,
 	    poll_us, idle_us, ft.bb ? "gpio bit-bang" : "QUP/GPI");
