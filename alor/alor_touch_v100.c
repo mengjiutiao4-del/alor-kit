@@ -161,6 +161,12 @@ ft_sleep(unsigned ms)
 
 static volatile unsigned alor_stage, alor_done;
 static unsigned alor_ws = 9;
+/* alor_pins_loader=1: the loader owns every pad on this chip, so the driver
+ * must not touch TLMM at all. File scope, not a local of ft_thread():
+ * alor_fts_run() reads it, and that is a separate function. Declaring it in
+ * ft_thread() made alor_fts_run() fail to compile with 'use of undeclared
+ * identifier' -- which is what turned the v100 CI round red. */
+static int alor_pins_loader;
 static vm_offset_t alor_fb;
 static uint32_t alor_fb_row;
 
@@ -1308,7 +1314,7 @@ alor_fts_run(void)
 	 *
 	 * With the flag set this whole block is skipped: the pads already hold the
 	 * vendor settings the loader programmed. */
-	if (!pins_loader) {
+	if (!alor_pins_loader) {
 		ft_gpio(FT_IRQ, 0, 3, 8, -1);
 		if (ft.bb) {
 			ft_bb_pin(FT_PIN_MISO, false, false);
@@ -1355,7 +1361,7 @@ alor_fts_run(void)
 	 * low, hold, release, then wait 300 ms before the first transfer. The
 	 * reset pad has no pull in the device tree (pmx_ts_reset_active sets
 	 * bias-disable), so pass pull 0 rather than the 3 used for IRQ. */
-	if (!pins_loader) {
+	if (!alor_pins_loader) {
 		ft_gpio(FT_RESET, 0, 0, 8, 0);
 		ft_sleep(20);
 		ft_gpio(FT_RESET, 0, 0, 8, 1);
@@ -1515,9 +1521,8 @@ ft_thread(void *arg, wait_result_t result)
 	/* Set by the runner: the loader has already programmed every pad on this
 	 * chip, so this driver must not touch TLMM at all. See the comment at the
 	 * pad block below for the 900E history behind it. */
-	int pins_loader = 0;
-	(void)PE_parse_boot_argn("alor_pins_loader", &pins_loader,
-	    sizeof(pins_loader));
+	(void)PE_parse_boot_argn("alor_pins_loader", &alor_pins_loader,
+	    sizeof(alor_pins_loader));
 	ft.bb = bb != 0;
 	printf("FUXI TOUCH: starting in %u s (poll %u us active, %u us idle, %s)\n", delay_s,
 	    poll_us, idle_us, ft.bb ? "gpio bit-bang" : "QUP/GPI");

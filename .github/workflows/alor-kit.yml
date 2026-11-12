@@ -219,8 +219,20 @@ jobs:
             echo "== oom"; (dmesg 2>/dev/null || sudo -n dmesg 2>/dev/null) | grep -iE 'out of memory|killed process|oom-killer' | tail -12
             echo "== xnu-src"; ls -l xnu-src 2>/dev/null | head -6
             echo "== work"; ls -l work 2>/dev/null | tail -8
-            echo "== log head"; head -c 3000 kernel-build.log 2>/dev/null
-            echo "== log tail"; tail -c 12000 kernel-build.log 2>/dev/null
+            # The head/tail capture lost the one line that mattered: a failed
+            # round reported rc=2 and shipped 3000 chars of "Entering directory"
+            # plus 12000 chars of cascading make errors, with the actual compiler
+            # diagnostic in the truncated middle. These greps keep every line
+            # that names a file and a line number, which is what an error is.
+            echo "== compiler diagnostics"
+            grep -nE ":[0-9]+:[0-9]+: (error|warning|note):" kernel-build.log 2>/dev/null | head -80
+            echo "== first error"
+            grep -nE "error:|undefined reference|No such file" kernel-build.log 2>/dev/null | head -40
+            echo "== alor driver diagnostics"
+            grep -niE "alor_touch|ft3683|focaltech" kernel-build.log 2>/dev/null | grep -iE "error|warning" | head -40
+            echo "== log size"; wc -c kernel-build.log 2>/dev/null
+            echo "== log head"; head -c 1500 kernel-build.log 2>/dev/null
+            echo "== log tail"; tail -c 6000 kernel-build.log 2>/dev/null
           } > diag-kernel.log
           git add -f diag-kernel.log
           git -c user.name=alor -c user.email=alor@users.noreply.github.com commit -q -m "${{ github.workflow }} job ${{ job.status }}, build log attached" || true
