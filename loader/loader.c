@@ -698,7 +698,10 @@ static uint64_t recording_len;
  * helpers this file already has (smc_call) so the UEFI build cannot break: the
  * same TrustZone IO service was refused from XNU, and it is documented as a
  * boot-stage monitor call, so ask for it here. */
-static void
+/* Kept for reference and for a board whose monitor does answer, but no longer
+ * called from the boot path: it is the call that wedged every run on
+ * 2026-11-12. If it is ever reinstated, give smc_call a timeout first. */
+static void __attribute__((unused))
 tz2_rails(void)
 {
  static const uint64_t tcs = 0x18920d00ULL;
@@ -1959,14 +1962,27 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
  print("cmdline: %s\n", ba->commandLine);
  if (kernel_mpidr != this_mpidr) {
   print("the kernel will run on core %x (this is core %x)\n", kernel_mpidr, this_mpidr);
- /* Pins first, rails second: Android's own pinctrl shows the touch rails are
-  * what makes a later TLMM access fatal, and a no-power pin setup is safe. */
+ /* Pins only. tz2_rails() used to run here on BOTH branches, and it is what
+  * stopped this loader from ever launching the kernel.
+  *
+  * It asks TrustZone for the touch LDOs through smc_call(0x02000502). smc_call
+  * has no timeout in its trampoline -- a call that never returns falls into an
+  * unguarded "wfi; b ." loop -- and on this board it does not return.
+  *
+  * Three runs on 2026-11-12 proved this is not touch-specific. The last passed
+  * no alor argument at all, so alor_touch_pins() never ran, and the loader
+  * still stopped answering the moment `oem run` was issued: the else branch
+  * called tz2_rails() and nothing else. The kernel never executed once in any
+  * of the three, which is why every touch experiment this month read back 00,
+  * ff or silence -- the driver was never running to begin with.
+  *
+  * The rails are now voted from the host with "oem rails <slot>" before the
+  * run. That takes the rail_both() path: direct RSC registers, no TrustZone,
+  * bounded to 2000 polls, so a dead controller reports a timeout instead of
+  * wedging the board. */
  if (cmdline_has(ba->commandLine, "alor_pins=1")) {
   alor_touch_pins();
-  tz2_rails();
   alor_touch_reset_release();
- } else {
-  tz2_rails();
  }
  }
  print("jumping to %x\n", entry_va + slide);
