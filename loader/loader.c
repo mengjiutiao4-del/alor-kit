@@ -1498,6 +1498,7 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
          * behaviour is a rebuild, and every experiment this week cost a boot. */
         const char *wide_keys[] = {"alor_pins=", "alor_reset2=", "alor_geni=", "alor_hid=",
                                    "alor_bb=", "alor_bb_us=", "alor_rails=",
+                                   "alor_handback=",
                                    "alortouchdelay=", "fuxitouchdelay=", "fuxitouch_idle_us=",
                                    "fuxitouch_poll_us=", "fuxitouch_offsuppress="};
         for (unsigned k=0; k<sizeof(wide_keys)/sizeof(wide_keys[0]); k++) {

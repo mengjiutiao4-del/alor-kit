@@ -376,6 +376,7 @@ static void
 hv_wdt_pet(__unused thread_call_param_t p0, __unused thread_call_param_t p1)
 {
  uint64_t deadline;
+ static int hand_back;
  if (hv_wdt_enabled) {
   register uint64_t x0 __asm__("x0") = VIRT_WDT_PET;
   register uint64_t x1 __asm__("x1") = 0;
@@ -384,7 +385,41 @@ hv_wdt_pet(__unused thread_call_param_t p0, __unused thread_call_param_t p1)
   __asm__ volatile ("smc #0" : "+r" (x0), "+r" (x1), "+r" (x2), "+r" (x3) : :
       "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17");
  }
- if (++loader_live.heartbeat % MEMORY_REPORT_BEATS == 0) {
+ /* Deliberate hand-back.
+  *
+  * This timer is the only thing that bumps loader_live.heartbeat, so it is also
+  * the only thing that can stop it. That matters because the loader reclaims
+  * control only after SILENCE_SECONDS (50) with no change in that counter: a
+  * healthy kernel keeps it moving, the loader waits forever, and `getvar
+  * result` times out. On 2026-11-12 a run at 10:26 voted both rails, started
+  * the kernel, scrolled the console normally on the panel and still lost its
+  * log that way. `--seconds` does not help; it only bounds the wait.
+  *
+  * alor_handback=1 sets this once, some seconds after boot, so the loader can
+  * notice the silence and print the log it captured. Stopping the heartbeat is
+  * the one mechanism that works from inside the kernel, because it is the exact
+  * signal the loader is watching. Without the boot argument nothing changes. */
+ if (!hand_back) {
+  int want = 0;
+  if (PE_parse_boot_argn("alor_handback", &want, sizeof(want)) && want) {
+   uint64_t now = mach_absolute_time();
+   static uint64_t first;
+   if (first == 0) {
+    first = now;
+   } else {
+    uint64_t elapsed_ms;
+    absolutetime_to_nanoseconds(now - first, &elapsed_ms);
+    /* 20 s is comfortably after the touch driver has read and painted the
+     * chip ID, and leaves room for the 50 s silence inside --seconds 150. */
+    if (elapsed_ms >= 20ULL * 1000 * 1000 * 1000) {
+     hand_back = 1;
+     printf("loader hand-back: stopping the heartbeat on purpose so the "
+         "loader can collect this log\n");
+    }
+   }
+  }
+ }
+ if (!hand_back && (++loader_live.heartbeat % MEMORY_REPORT_BEATS) == 0) {
   memory_report();
  }
  clock_interval_to_deadline(HV_WDT_PET_SECONDS, NSEC_PER_SEC, &deadline);
