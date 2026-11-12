@@ -1,0 +1,107 @@
+== alor-kit124 run 43175793332 job success sha=d0821e8c1c2d8fc62c224983073f217f5dba83bf
+rc=2
+== log 183831 bytes
+== cpus 4 mem MemTotal:       16367520 kB MemAvailable:   15265916 kB 
+== disk
+/dev/root       145G   61G   84G  42% /
+== oom
+== xnu-src
+total 4
+drwxr-xr-x 21 runner runner 4096 Nov 12 07:31 xnu-8796.121.2
+== work
+total 17416
+-rwxr-xr-x 1 runner runner 14952112 Nov 12 07:34 mach.development.bcm2837
+drwxr-xr-x 4 runner runner     4096 Nov 12 07:31 theos
+drwxr-xr-x 5 runner runner     4096 Nov 12 07:34 uefi-venv
+-rw-r--r-- 1 runner runner  2871296 Nov 12 07:35 uefi.img
+== compiler diagnostics
+== first error
+== alor driver diagnostics
+== log size
+183831 kernel-build.log
+== log head
+make[1]: warning: -j5 forced in submake: resetting jobserver mode.
+make[1]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2'
+make[2]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj'
+make[3]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/SETUP'
+make[3]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/san'
+make[3]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/bsd'
+make[4]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/SETUP/kextsymboltool'
+make[4]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/SETUP/config'
+make[4]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/SETUP/setsegname'
+make[4]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/san/memory'
+make[4]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/SETUP/kextsymboltool'
+make[4]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/SETUP/config'
+make[4]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/san/memory'
+make[4]: Entering directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/bsd/sys'
+make[4]: Leaving directory '/h== log tail
+r-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+      INSTALLPY kasan.py
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+      INSTALLPY kauth.py
+      INSTALLPY usertaskgdbserver.py
+      INSTALLPY waitq.py
+      INSTALLPY xnutriage.py
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+      INSTALLPY kmtriage.py
+      INSTALLPY zonetriage.py
+      INSTALLPY recount.py
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+./sdpydir/xnutriage.py.unifdef.20872.py:94: SyntaxWarning: invalid escape sequence '\s'
+  srch_string = "lr:\s+0x[a-fA-F0-9]+\s"
+./sdpydir/xnutriage.py.unifdef.20872.py:115: SyntaxWarning: invalid escape sequence '\s'
+  srch_string = "lr:\s+0x[a-fA-F0-9]+\s"
+      INSTALLPY sysreg.py
+      INSTALLPY counter.py
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+./sdpydir/zonetriage.py.unifdef.20897.py:31: SyntaxWarning: invalid escape sequence '\('
+  zone_map_exhausted = ".*zalloc: zone map exhausted while allocating from zone .+, likely due to memory leak in zone (?P<zone>.+) \(([0-9]*)? total bytes, ([0-9]*)? elements allocated\).*"
+      INSTALLPY refgrp.py
+      INSTALLPY workload.py
+      INSTALLPY log.py
+      INSTALLPY kext.py
+      INSTALLPY plugins/iosspeedtracer.py
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+      INSTALLPY plugins/iosspeedtracer.sh
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/tools/lldbmacros//core/syntax_checker.py:21: SyntaxWarning: invalid escape sequence '\s'
+  tabs_search_rex = re.compile("^\s*\t+",re.MULTILINE|re.DOTALL)
+make[5]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/tools/lldbmacros'
+make[4]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/tools/lldbmacros'
+make[3]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/tools'
+make[2]: Target 'config_all' not remade because of errors.
+make[2]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837'
+make[1]: *** [/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2/makedefs/MakeInc.top:538: config_all_bootstrap_DEVELOPMENT^ARM64^BCM2837] Error 2
+make[1]: Target 'all' not remade because of errors.
+make[1]: Leaving directory '/home/runner/work/alor-kit/alor-kit/xnu-src/xnu-8796.121.2'
+make: *** [Makefile:239: all] Error 2
+make: Target 'default' not remade because of errors.
